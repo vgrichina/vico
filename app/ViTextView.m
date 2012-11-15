@@ -58,7 +58,7 @@ int logIndent = 0;
                       withString:(NSString *)aString
                        undoGroup:(BOOL)undoGroup;
 - (void)setVisualSelection;
-- (void)updateStatus;
+- (void)postModeChangedNotification;
 - (NSUInteger)removeTrailingAutoIndentForLineAtLocation:(NSUInteger)aLocation;
 - (void)setCaret:(NSUInteger)location updateSelection:(BOOL)updateSelection;
 @end
@@ -104,6 +104,10 @@ int logIndent = 0;
 	[[NSNotificationCenter defaultCenter] addObserver:self
 						 selector:@selector(documentRemoved:)
 						     name:ViDocumentRemovedNotification
+						   object:document];
+	[[NSNotificationCenter defaultCenter] addObserver:self
+						 selector:@selector(documentBusyChanged:)
+						     name:ViDocumentBusyChangedNotification
 						   object:document];
 
 	_undoManager = [[document undoManager] retain];
@@ -195,8 +199,9 @@ int logIndent = 0;
 
 	[self setTheme:[[ViThemeStore defaultStore] defaultTheme]];
 	[self setCaret:0];
-	[self updateStatus];
 	[self updateFont];
+
+	[self postModeChangedNotification];
 }
 
 - (NSPoint)textContainerOrigin
@@ -261,6 +266,14 @@ DEBUG_FINALIZE();
 
 	[document release];
 	document = nil;
+}
+
+- (void)documentBusyChanged:(NSNotification *)notification
+{
+	if ([notification object] != document)
+		return;
+
+	[self postModeChangedNotification];
 }
 
 - (NSString *)description
@@ -1574,6 +1587,13 @@ replaceCharactersInRange:(NSRange)aRange
 
 #pragma mark -
 
+- (void)postModeChangedNotification
+{
+	NSNotification *notification = [NSNotification notificationWithName:ViModeChangedNotification object:self];
+	[[NSNotificationQueue defaultQueue] enqueueNotification:notification postingStyle:NSPostASAP];
+}
+
+
 - (void)setNormalMode
 {
 	DEBUG(@"setting normal mode, caret = %u, final_location = %u, length = %u",
@@ -1583,6 +1603,8 @@ replaceCharactersInRange:(NSRange)aRange
 		[[self document] setMark:']' atLocation:end_location];
 	mode = ViNormalMode;
 	[self endUndoGroup];
+
+	[self postModeChangedNotification];
 }
 
 - (void)resetSelection
@@ -1594,6 +1616,8 @@ replaceCharactersInRange:(NSRange)aRange
 - (void)setVisualMode
 {
 	mode = ViVisualMode;
+
+	[self postModeChangedNotification];
 }
 
 - (void)setInsertMode:(ViCommand *)command
@@ -1626,6 +1650,8 @@ replaceCharactersInRange:(NSRange)aRange
 			replayingInput = NO;
 		}
 	}
+
+	[self postModeChangedNotification];
 }
 
 - (void)setInsertMode
@@ -2058,31 +2084,6 @@ replaceCharactersInRange:(NSRange)aRange
 	return YES;
 }
 
-- (void)updateStatus
-{
-	if ([self isFieldEditor])
-		return;
-
-	const char *modestr = "";
-	if (document.busy) {
-		modestr = "--BUSY--";
-	} else if (mode == ViInsertMode) {
-		if (document.snippet)
-			modestr = "--SNIPPET--";
-		else
-			modestr = "--INSERT--";
-	} else if (mode == ViVisualMode) {
-		if (visual_line_mode)
-			modestr = "--VISUAL LINE--";
-		else
-			modestr = "--VISUAL--";
-	}
-	MESSAGE([NSString stringWithFormat:@"%lu,%lu   %s",
-	    (unsigned long)[self currentLine],
-	    (unsigned long)[self currentColumn],
-	    modestr]);
-}
-
 - (BOOL)keyManager:(ViKeyManager *)keyManager
    evaluateCommand:(ViCommand *)command
 {
@@ -2275,9 +2276,11 @@ replaceCharactersInRange:(NSRange)aRange
 	if (mode != ViInsertMode)
 		[self endUndoGroup];
 
+	/* TODO hm?
 	if (ok && !keepMessagesHack)
 		[self updateStatus];
 	keepMessagesHack = NO;
+	*/
 
 	if ([[NSUserDefaults standardUserDefaults] boolForKey:@"matchparen"])
 		[self highlightSmartPairAtLocation:[self caret]];
@@ -2614,8 +2617,6 @@ replaceCharactersInRange:(NSRange)aRange
 		[self resetSelection];
 	}
 
-	[self updateStatus];
-
 	if ([[NSUserDefaults standardUserDefaults] boolForKey:@"matchparen"])
 		[self highlightSmartPairAtLocation:[self caret]];
 }
@@ -2656,7 +2657,6 @@ replaceCharactersInRange:(NSRange)aRange
 
 	[self scrollToCaret];
 	[self setVisualSelection];
-	[self updateStatus];
 }
 
 - (void)rightMouseDown:(NSEvent *)theEvent

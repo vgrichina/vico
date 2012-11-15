@@ -97,6 +97,8 @@ BOOL openUntitledDocument = YES;
 @synthesize encodingMenu;
 @synthesize original_input_source;
 
+@synthesize statusSetupBlock = _statusSetupBlock;
+
 - (void)getUrl:(NSAppleEventDescriptor *)event withReplyEvent:(NSAppleEventDescriptor *)replyEvent
 {
 	NSString *s = [[event paramDescriptorForKeyword:keyDirectObject] stringValue];
@@ -122,6 +124,8 @@ BOOL openUntitledDocument = YES;
 
 		[NSValueTransformer setValueTransformer:[[[caretBlinkModeTransformer alloc] init] autorelease]
 						forName:@"caretBlinkModeTransformer"];
+
+		_statusSetupBlock = nil;
 	}
 	return self;
 }
@@ -242,9 +246,10 @@ updateMeta(void)
 	/* Cache the default IBeam cursor implementation. */
 	[NSCursor defaultIBeamCursorImplementation];
 
-	[Nu loadNuFile:@"vico" fromBundleWithIdentifier:@"se.bzero.Vico" withContext:nil];
-	[Nu loadNuFile:@"keys" fromBundleWithIdentifier:@"se.bzero.Vico" withContext:nil];
-	[Nu loadNuFile:@"ex"   fromBundleWithIdentifier:@"se.bzero.Vico" withContext:nil];
+	[Nu loadNuFile:@"vico"   fromBundleWithIdentifier:@"se.bzero.Vico" withContext:nil];
+	[Nu loadNuFile:@"keys"   fromBundleWithIdentifier:@"se.bzero.Vico" withContext:nil];
+	[Nu loadNuFile:@"ex"     fromBundleWithIdentifier:@"se.bzero.Vico" withContext:nil];
+	[Nu loadNuFile:@"status" fromBundleWithIdentifier:@"se.bzero.Vico" withContext:nil];
 
 	[SFBCrashReporter checkForNewCrashes];
 
@@ -287,6 +292,7 @@ updateMeta(void)
 	    [NSNumber numberWithBool:YES], @"expandtab",
 	    [NSNumber numberWithBool:YES], @"smarttab",
 	    [NSNumber numberWithBool:YES], @"number",
+	    [NSNumber numberWithBool:NO], @"relativenumber",
 	    [NSNumber numberWithBool:YES], @"autocollapse",
 	    [NSNumber numberWithBool:YES], @"hidetab",
 	    [NSNumber numberWithBool:YES], @"searchincr",
@@ -309,6 +315,7 @@ updateMeta(void)
 	    @"vim", @"undostyle",
 	    @"Sunset", @"theme",
 	    @"(^\\.(?!(htaccess|(git|hg|cvs)ignore)$)|^(CVS|_darcs|\\.svn|\\.git)$|~$|\\.(bak|o|pyc|gz|tgz|zip|dmg|pkg)$)", @"skipPattern",
+	    [NSNumber numberWithBool:NO], @"includedevelopmenu",
 	    [NSArray arrayWithObjects:@"vicoapp", @"textmate", @"kswedberg", nil], @"bundleRepoUsers",
 	    [NSNumber numberWithBool:YES], @"explorecaseignore",
 	    [NSNumber numberWithBool:NO], @"exploresortfolders",

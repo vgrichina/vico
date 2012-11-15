@@ -112,6 +112,7 @@ OBJC_SRCS = \
 	ViScope.m \
 	ViSeparatorCell.m \
 	ViSnippet.m \
+	ViStatusView.m \
 	ViSymbolController.m \
 	ViSymbolTransform.m \
 	ViSyntaxCompletion.m \
@@ -249,6 +250,7 @@ NU = \
 	app/ex.nu \
 	app/keys.nu \
 	app/vico.nu \
+	app/status.nu \
 	nu/beautify.nu \
 	nu/bridgesupport.nu \
 	nu/cblocks.nu \

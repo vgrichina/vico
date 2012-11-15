@@ -36,10 +36,13 @@
 #define ViViewClosedNotification @"ViViewClosedNotification "
 #define ViFirstResponderChangedNotification @"ViFirstResponderChangedNotification"
 #define ViCaretChangedNotification @"ViCaretChangedNotification"
+#define ViModeChangedNotification @"ViModeChangedNotification"
+#define ViDocumentBusyChangedNotification @"ViDocumentBusyChangedNotification"
 #define ViDocumentEditedChangedNotification @"ViDocumentEditedChangedNotification "
 #define ViURLContentsCachedNotification @"ViURLContentsCachedNotification"
 #define ViTextStorageChangedLinesNotification @"ViTextStorageChangedLinesNotification"
 #define ViEditPreferenceChangedNotification @"ViEditPreferenceChangedNotification"
+#define ViStatusLineUpdatedNotification @"ViStatusLineUpdatedNotification"
 
 #define ViFilterRunLoopMode @"ViFilterRunLoopMode"
 

@@ -15,6 +15,7 @@
 (global ViMapIsMotion 4)
 (global ViMapLineMode 8)
 (global ViMapNeedArgument 16)
+(global ViMapNoArgumentOnToggle 32)
 
 (global ViRegexpIgnoreCase 1)
 
@@ -90,4 +91,3 @@
 (global NSLineBreakByTruncatingHead 3)
 (global NSLineBreakByTruncatingTail 4)
 (global NSLineBreakByTruncatingMiddl 5)
-

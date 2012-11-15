@@ -101,6 +101,11 @@
 			[self setNormalMode];
 			[self resetSelection];
 			return NO;
+		} else {
+			// Trigger a notification that the mode changed. Otherwise,
+			// anyone watching for mode changes will still think we're in
+			// regular visual mode.
+			[self setVisualMode];
 		}
 	} else {
 		visual_start_location = [self caret];
@@ -2418,6 +2423,18 @@
 {
 	ViMark *m = [[self document] setMark:command.argument atLocation:start_location];
 	m.persistent = NO;
+	return YES;
+}
+
+/* syntax: q<char> to start, q to end */
+- (BOOL)toggle_record_macro:(ViCommand *)command
+{
+	if ([_keyManager isRecordingMacro]) {
+		[_keyManager stopRecordingMacroAndSave];
+	} else {
+		[_keyManager startRecordingMacro:[command argument]];
+	}
+
 	return YES;
 }
 

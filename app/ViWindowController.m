@@ -103,7 +103,13 @@ static __weak ViWindowController	*__currentWindowController = nil; // XXX: not r
 		[_jumpList setDelegate:self];
 		_parser = [[ViParser alloc] initWithDefaultMap:[ViMap normalMap]];
 		[self setBaseURL:[NSURL fileURLWithPath:NSHomeDirectory()]];
+
+        [[NSUserDefaults standardUserDefaults] addObserver:self
+                                                forKeyPath:@"includedevelopmenu"
+                                                   options:0
+                                                   context:NULL];
 	}
+
 	DEBUG_INIT();
 	return self;
 }
@@ -118,6 +124,7 @@ DEBUG_FINALIZE();
 
 	[[NSNotificationCenter defaultCenter] removeObserver:self];
 	[[NSUserDefaults standardUserDefaults] removeObserver:self forKeyPath:@"undostyle"];
+	[[NSUserDefaults standardUserDefaults] removeObserver:self forKeyPath:@"includedevelopmenu"];
 
 	NSArray *items = [[openFilesButton menu] itemArray];
 	if ([items count] > 0) {
@@ -306,6 +313,67 @@ DEBUG_FINALIZE();
 						forKeyPath:@"undostyle"
 						   options:NSKeyValueObservingOptionNew
 						   context:NULL];
+
+	// Set up default status bar.
+	NuBlock *statusSetupBlock = [[NSApp delegate] statusSetupBlock];
+	if (statusSetupBlock) {
+		NuCell *argument = [[NSArray arrayWithObject:messageView] list];
+
+		@try {
+			[statusSetupBlock evalWithArguments:argument
+										context:[statusSetupBlock context]];
+		}
+		@catch (NSException *exception) {
+			INFO(@"got exception %@ while evaluating expression:\n%@", [exception name], [exception reason]);
+			INFO(@"context was: %@", [statusSetupBlock context]);
+			[self message:[NSString stringWithFormat:@"Got exception %@: %@", [exception name], [exception reason]]];
+		}
+	} else {
+		ViStatusNotificationLabel *caretLabel =
+			[ViStatusNotificationLabel statusLabelForNotification:ViCaretChangedNotification
+												  withTransformer:^(ViStatusView *statusView, NSNotification *notification) {
+				ViTextView *textView = (ViTextView *)[notification object];
+
+				// If this is the ex box (which has no superview) or this is not
+				// for the current window, we bail on out.
+				if ([statusView window] != [textView window])
+					return (id)nil;
+
+				return [NSString stringWithFormat:@"%lu,%lu",
+					(unsigned long)[textView currentLine],
+					(unsigned long)[textView currentColumn]];
+		  }];
+		ViStatusNotificationLabel *modeLabel =
+			[ViStatusNotificationLabel statusLabelForNotification:ViModeChangedNotification
+												withTransformer:^(ViStatusView *statusView, NSNotification *notification) {
+				ViTextView *textView = (ViTextView *)[notification object];
+				ViDocument *document = textView.document;
+
+				// If this is the ex box (which has no superview) or this is not
+				// for the current window, we bail on out.
+				if (! [textView superview] || [statusView window] != [textView window])
+					return (id)nil;
+
+				const char *modestr = "";
+				if (document.busy) {
+					modestr = "--BUSY--";
+				} else if (textView.mode == ViInsertMode) {
+					if (document.snippet)
+						modestr = "--SNIPPET--";
+					else
+						modestr = "--INSERT--";
+				} else if (textView.mode == ViVisualMode) {
+					if (textView.visual_line_mode)
+						modestr = "--VISUAL LINE--";
+					else
+						modestr = "--VISUAL--";
+				}
+
+				return [NSString stringWithFormat:@"    %s", modestr];
+			}];
+
+		[messageView setStatusComponents:[NSArray arrayWithObjects:caretLabel, modeLabel, nil]];
+	}
 }
 
 - (id)windowWillReturnFieldEditor:(NSWindow *)sender toObject:(id)anObject
@@ -368,6 +436,10 @@ DEBUG_FINALIZE();
 	if ([keyPath isEqualToString:@"undostyle"]) {
 		NSString *newStyle = [change objectForKey:NSKeyValueChangeNewKey];
 		[_parser setNviStyleUndo:[newStyle isEqualToString:@"nvi"]];
+	} else if ([keyPath isEqualToString:@"includedevelopmenu"]) {
+        BOOL showMenu = [[NSUserDefaults standardUserDefaults] boolForKey:@"includedevelopmenu"];
+
+        [[ViDocumentController sharedDocumentController] showDevelopMenu:showMenu];
 	}
 }
 
@@ -477,12 +549,12 @@ DEBUG_FINALIZE();
 
 - (void)showMessage:(NSString *)string
 {
-	[messageField setStringValue:string];
+	[messageView setMessage:string];
 }
 
 - (void)message:(NSString *)fmt arguments:(va_list)ap
 {
-	[messageField setStringValue:[[[NSString alloc] initWithFormat:fmt arguments:ap] autorelease]];
+	[messageView setMessage:[[[NSString alloc] initWithFormat:fmt arguments:ap] autorelease]];
 }
 
 - (void)message:(NSString *)fmt, ...
@@ -2284,7 +2356,7 @@ additionalEffectiveRectOfDividerAtIndex:(NSInteger)dividerIndex
 	_exBusy = YES;
 	_exString = nil;
 
-	[messageField setHidden:YES];
+	[messageView setHidden:YES];
 	[statusbar setHidden:NO];
 	[statusbar setSelectable:NO];
 	[statusbar setEditable:YES];
@@ -2315,7 +2387,7 @@ additionalEffectiveRectOfDividerAtIndex:(NSInteger)dividerIndex
 	[statusbar setStringValue:@""];
 	[statusbar setEditable:NO];
 	[statusbar setHidden:YES];
-	[messageField setHidden:NO];
+	[messageView setHidden:NO];
 	[self focusEditor];
 
 	NSString *ret = [_exString autorelease];
@@ -2597,6 +2669,7 @@ additionalEffectiveRectOfDividerAtIndex:(NSInteger)dividerIndex
 		@"number", @"nu",
 		@"number", @"num",
 		@"number", @"numb",
+		@"relativenumber", @"rnu",
 		@"autocollapse", @"ac",  // automatically collapses other documents in the symbol list
 		@"hidetab", @"ht",  // hide tab bar for single tabs
 		@"fontsize", @"fs",
@@ -2617,9 +2690,10 @@ additionalEffectiveRectOfDividerAtIndex:(NSInteger)dividerIndex
 
 	NSArray *booleans = [NSArray arrayWithObjects:
 	    @"autoindent", @"expandtab", @"smartpair", @"ignorecase", @"smartcase", @"number",
-	    @"autocollapse", @"hidetab", @"showguide", @"searchincr", @"smartindent",
-	    @"wrap", @"antialias", @"list", @"smarttab", @"prefertabs", @"cursorline", @"gdefault",
-	    @"wrapscan", @"clipboard", @"matchparen", @"flashparen", @"linebreak",
+	    @"relativenumber", @"autocollapse", @"hidetab", @"shjwguide", @"searchincr",
+	    @"smartindent", @"wrap", @"antialias", @"list", @"smarttab", @"prefertabs",
+	    @"cursorline", @"gdefault", @"wrapscan", @"clipboard", @"matchparen",
+	    @"flashparen", @"linebreak",
 	    nil];
 
 	NSString *var;
